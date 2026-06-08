@@ -150,6 +150,8 @@ namespace Unity.Media.Blackmagic
         /// <returns>True if used in edit mode; false otherwise.</returns>
         public bool IsUsedInEditMode() => GetVideoDeviceOrThrowInvalidOperation(Name).IsUsedInEditMode;
 
+        public uint BufferedFrameCount() => GetVideoDeviceOrThrowInvalidOperation(Name).BufferedFrameCount;
+
         /// <summary>
         /// Retrieves the number of dropped frames.
         /// </summary>

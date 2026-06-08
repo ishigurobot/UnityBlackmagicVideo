@@ -390,6 +390,16 @@ extern "C" void UNITY_INTERFACE_EXPORT WaitOutputDeviceCompletion(void* outputDe
     instance->WaitFrameCompletion(frameNumber);
 }
 
+extern "C" const unsigned int UNITY_INTERFACE_EXPORT CountBufferedOutputDeviceFrames(void* outputDevice)
+{
+    if (outputDevice == nullptr)
+        return 0;
+    auto instance = reinterpret_cast<MediaBlackmagic::DeckLinkOutputDevice*>(outputDevice);
+    if (instance == nullptr)
+        return 0;
+    return instance->CountBufferedFrames();
+}
+
 extern "C" const unsigned int UNITY_INTERFACE_EXPORT CountDroppedOutputDeviceFrames(void* outputDevice)
 {
     if (outputDevice == nullptr)

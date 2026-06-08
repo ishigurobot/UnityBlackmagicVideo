@@ -92,6 +92,12 @@ namespace MediaBlackmagic
         bool  IsProgressive() const;
         bool  IsReferenceLocked() const;
 
+        inline unsigned int CountBufferedFrames() const
+        {
+            unsigned int count;
+            m_Output->GetBufferedVideoFrameCount(&count);
+            return count;
+        }
         inline unsigned int CountDroppedFrames() const { return m_DroppedFrameCount; }
         inline unsigned int CountLateFrames() const { return m_LateFrameCount; }
         inline bool IsAsyncMode() const { return m_IsAsync; }

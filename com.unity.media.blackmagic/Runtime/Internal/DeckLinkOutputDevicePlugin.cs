@@ -223,6 +223,8 @@ namespace Unity.Media.Blackmagic
         /// </summary>
         public bool IsReferenceLocked => IsOutputDeviceReferenceLocked(m_CurrentDevice) != 0;
 
+        public uint BufferedFrameCount => CountBufferedOutputDeviceFrames(m_CurrentDevice);
+
         /// <summary>
         /// The number of frames dropped.
         /// </summary>
@@ -410,6 +412,8 @@ namespace Unity.Media.Blackmagic
 
         [DllImport(BlackmagicUtilities.k_PluginName)]
         static extern void WaitOutputDeviceCompletion(IntPtr outputDevice, long frameNumber);
+        [DllImport(BlackmagicUtilities.k_PluginName)]
+        static extern uint CountBufferedOutputDeviceFrames(IntPtr outputDevice);
 
         [DllImport(BlackmagicUtilities.k_PluginName)]
         static extern uint CountDroppedOutputDeviceFrames(IntPtr outputDevice);

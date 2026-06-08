@@ -202,6 +202,8 @@ namespace Unity.Media.Blackmagic
             return false;
         }
 
+        public uint BufferedFrameCount { get; private set; }
+
         /// <inheritdoc/>
         public uint DroppedFrameCount { get; private set; }
 

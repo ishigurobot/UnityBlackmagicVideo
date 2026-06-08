@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace Unity.Media.Blackmagic
 {
@@ -100,6 +100,8 @@ namespace Unity.Media.Blackmagic
         /// <param name="denominator">The frame rate scale.</param>
         /// <returns>True if succeeded; false otherwise.</returns>
         bool TryGetFramerate(out int numerator, out int denominator);
+
+        uint BufferedFrameCount { get; }
 
         /// <summary>
         /// The number of frames dropped.

@@ -297,6 +297,8 @@ namespace Unity.Media.Blackmagic
             return false;
         }
 
+        public uint BufferedFrameCount => m_Plugin?.BufferedFrameCount ?? 0;
+
         /// <inheritdoc/>
         public uint DroppedFrameCount => m_Plugin?.DroppedFrameCount ?? 0;
 

@@ -1188,6 +1188,17 @@ namespace Unity.Media.Blackmagic
 
                 m_Plugin.FeedFrame(frame.request.GetData<byte>(), timecode);
 
+                // SDI出力バッファを枯渇させた状態で長時間経つと、復帰には同じだけのフレームを追加で積まないと定常運転に復帰できないような挙動になっている
+                // そのためバッファが枯渇しそうになったら前回フレームと同じフレームでよいのでダミーで積んでおく
+                while (m_Plugin.BufferedFrameCount < 3)
+                {
+                    m_FrameCount++;
+
+                    var timecode2 = frame.timecode ?? new Timecode(m_Plugin.FrameDuration, m_FrameCount * m_Plugin.FrameDuration);
+
+                    m_Plugin.FeedFrame(frame.request.GetData<byte>(), timecode2);
+                }
+
                 m_PooledRequests.BMDRelease(frame.frameCount);
 
                 m_FrameCount++;

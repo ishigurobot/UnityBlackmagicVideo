@@ -201,6 +201,8 @@ namespace Unity.Media.Blackmagic
         int? m_OldSDKDisplayMode = DefaultVideoMode.sdkValue;
         OutputGPUDirect m_GPUDirect;
         bool m_CurrentUseGPUDirect;
+        long m_CompletedFrameNumber;
+        long m_currentDiffFromCompletedFrameNumber;
 
 #if LEGACY_RENDER_PIPELINE
         bool m_UsingLegacyRenderPipeline;
@@ -818,6 +820,7 @@ namespace Unity.Media.Blackmagic
 #if UNITY_EDITOR
                 m_Plugin.OnFrameError -= OnFrameErrorTriggered;
 #endif
+                m_Plugin.OnFrameCompleted -= OnFrameCompletedTriggered;
                 m_Plugin.Dispose();
                 m_Plugin = null;
             }
@@ -908,6 +911,7 @@ namespace Unity.Media.Blackmagic
 #if UNITY_EDITOR
             m_Plugin.OnFrameError += OnFrameErrorTriggered;
 #endif
+            m_Plugin.OnFrameCompleted += OnFrameCompletedTriggered;
 
             m_Plugin.InitializeCallbacks();
             m_Plugin.SetDefaultScheduleTime(0.0f);
@@ -1051,10 +1055,28 @@ namespace Unity.Media.Blackmagic
             //if (Application.isPlaying && m_CurrentSyncMode == SyncMode.ManualMode && m_FrameCount > QueueLength)
             //    m_Plugin.WaitCompletion(m_FrameCount - QueueLength);
 
-            // ここでメインスレッドをブロックして待機すると遅延時に復帰できなくなるので基本別スレッドで投げっぱなしにして回避
+
+            // ↑そもそもDropとかバッファオーバーフローとか発生しうる状況で完全にFrameが処理されたことをWaitしてUpdateループ制御すると容易にスタックするので危険だと思う
+            // なのでここではあくまで独立してループを回しつつ、一応デバイス側との同期ずれはチェックしておく
+            // そもそも目標FPSより多く回ることのほうが珍しいからバッファオーバーフローよりバッファ枯渇からの復帰をしっかり対策したほうがいいと思う
             if (Application.isPlaying && m_CurrentSyncMode == SyncMode.ManualMode && m_FrameCount > QueueLength)
             {
-                Task.Run(() => m_Plugin.WaitCompletion(m_FrameCount - QueueLength));
+                //Task.Run(() =>
+                //{
+                //    var startTime = DateTime.UtcNow;
+                //    m_Plugin.WaitCompletion(m_FrameCount - QueueLength); // Max200ms待機するらしい
+                //    if ((DateTime.UtcNow - startTime).TotalMilliseconds is var elapsed && elapsed > 16) // ms
+                //    {
+                //        Debug.LogWarning($"[{GetType().Name}] m_Plugin.WaitCompletion({m_FrameCount} - {QueueLength}) for {elapsed}ms (Completed {m_CompletedFrameNumber})");
+                //    }
+                //});
+
+                if (m_FrameCount - m_CompletedFrameNumber > m_currentDiffFromCompletedFrameNumber)
+                {
+                    var newDiff = m_FrameCount - m_CompletedFrameNumber;
+                    Debug.LogWarning($"[{GetType().Name}] 出力デバイスとの同期ズレを検出 diff {m_currentDiffFromCompletedFrameNumber} -> {newDiff}");
+                    m_currentDiffFromCompletedFrameNumber = newDiff;
+                }
             }
         }
 
@@ -1341,6 +1363,15 @@ namespace Unity.Media.Blackmagic
 
             var error = Marshal.PtrToStringAnsi(message);
             deckLinkOutputDevice.m_FrameStatus = (error, status);
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(DeckLinkOutputDevicePlugin.FrameCompletedCallback))]
+        static void OnFrameCompletedTriggered(int index, long frameNumber)
+        {
+            if (index == -1 || !VideoIOFrameManager.GetOutputDevice(index, out var deckLinkOutputDevice))
+                return;
+
+            deckLinkOutputDevice.m_CompletedFrameNumber = frameNumber;
         }
     }
 }

@@ -24,6 +24,7 @@ using System.Runtime.InteropServices;
 using static Unity.Media.Blackmagic.VideoMode;
 using System.Collections.Concurrent;
 using Unity.Collections.LowLevel.Unsafe;
+using System.Threading.Tasks;
 
 #if LIVE_CAPTURE_4_0_0_OR_NEWER
 using Unity.LiveCapture;
@@ -1047,8 +1048,14 @@ namespace Unity.Media.Blackmagic
                 return;
 #endif
 
+            //if (Application.isPlaying && m_CurrentSyncMode == SyncMode.ManualMode && m_FrameCount > QueueLength)
+            //    m_Plugin.WaitCompletion(m_FrameCount - QueueLength);
+
+            // ここでメインスレッドをブロックして待機すると遅延時に復帰できなくなるので基本別スレッドで投げっぱなしにして回避
             if (Application.isPlaying && m_CurrentSyncMode == SyncMode.ManualMode && m_FrameCount > QueueLength)
-                m_Plugin.WaitCompletion(m_FrameCount - QueueLength);
+            {
+                Task.Run(() => m_Plugin.WaitCompletion(m_FrameCount - QueueLength));
+            }
         }
 
         internal void PromoteToManualMode()

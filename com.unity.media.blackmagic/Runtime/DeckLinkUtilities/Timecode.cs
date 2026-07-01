@@ -54,14 +54,61 @@ namespace Unity.Media.Blackmagic
         /// <param name="second">The number of elapsed seconds in the current minute.</param>
         /// <param name="frame">The number of elapsed frames in the current second.</param>
         /// <param name="isDropFrame">Is the specified time a valid drop frame timecode.</param>
+        //public Timecode(long frameDuration, int hour, int minute, int second, int frame, bool isDropFrame)
+        //{
+        //    // frames per second (ceiled)
+        //    var fps = (BlackmagicUtilities.k_FlicksPerSecond + frameDuration - 1) / frameDuration;
+        //    var fpm = fps * 60;
+        //    var fph = fpm * 60;
+
+        //    Flicks = (fph * hour + fpm * minute + fps * second + frame) * frameDuration;
+        //    Hour = hour;
+        //    Minute = minute;
+        //    Second = second;
+        //    Frame = frame;
+        //    IsDropFrame = isDropFrame;
+        //    FrameDuration = frameDuration;
+        //}
+
+        /// <summary>
+        /// Creates a new <see cref="Timecode"/> instance. (DropFrame規則が考慮されていなかったので修正)
+        /// </summary>
+        /// <param name="frameDuration">The duration of the frame in flicks.</param>
+        /// <param name="hour">The number of elapsed hours.</param>
+        /// <param name="minute">The number of elapsed minutes in the current hour.</param>
+        /// <param name="second">The number of elapsed seconds in the current minute.</param>
+        /// <param name="frame">The number of elapsed frames in the current second.</param>
+        /// <param name="isDropFrame">Is the specified time a valid drop frame timecode.</param>
         public Timecode(long frameDuration, int hour, int minute, int second, int frame, bool isDropFrame)
         {
-            // frames per second (ceiled)
-            var fps = (BlackmagicUtilities.k_FlicksPerSecond + frameDuration - 1) / frameDuration;
-            var fpm = fps * 60;
-            var fph = fpm * 60;
+            // 29.97 -> 30, 59.94 -> 60
+            var fps = (BlackmagicUtilities.k_FlicksPerSecond + frameDuration - 1) / frameDuration; // Mathf.CeilToInt( (double)BlackmagicUtilities.k_FlicksPerSecond / frameDuration )とほぼ一緒
 
-            Flicks = (fph * hour + fpm * minute + fps * second + frame) * frameDuration;
+            long totalFrames;
+
+            if (isDropFrame)
+            {
+                // SMPTE Drop Frame Supported for 29.97 (30DF) and 59.94 (60DF)
+                int dropFrames = 0;
+                switch (fps)
+                {
+                    case 30: dropFrames = 2; break;
+                    case 60: dropFrames = 4; break;
+                    default: UnityEngine.Debug.LogError("Drop-frame timecode is only valid for 29.97 or 59.94 fps."); break;
+                }
+
+                var totalMinutes = hour * 60 + minute;
+
+                var totalDroppedFrames = dropFrames * (totalMinutes - totalMinutes / 10);
+
+                totalFrames = ((hour * 3600L) + (minute * 60L) + second) * fps + frame - totalDroppedFrames;
+            }
+            else
+            {
+                totalFrames = ((hour * 3600L) + (minute * 60L) + second) * fps + frame;
+            }
+
+            Flicks = totalFrames * frameDuration;
             Hour = hour;
             Minute = minute;
             Second = second;
@@ -76,33 +123,111 @@ namespace Unity.Media.Blackmagic
         /// <param name="frameDuration">The duration of the frame in flicks.</param>
         /// <param name="flicks">The time in flicks.</param>
         /// <param name="isDropFrame">Is the specified time a valid drop frame timecode.</param>
+        //public Timecode(long frameDuration, long flicks, bool isDropFrame = false)
+        //{
+        //    // frames per second (ceiled)
+        //    var fps = (BlackmagicUtilities.k_FlicksPerSecond + frameDuration - 1) / frameDuration;
+        //    var fpm = fps * 60;
+        //    var fph = fpm * 60;
+
+        //    // total time in frames
+        //    var frames = flicks / frameDuration;
+
+        //    var hours = frames / fph;
+        //    frames -= hours * fph;
+
+        //    var minutes = frames / fpm;
+        //    frames -= minutes * fpm;
+
+        //    var seconds = frames / fps;
+        //    frames -= seconds * fps;
+
+        //    // 24 hours wrapping around
+        //    hours %= 24;
+
+        //    Flicks = flicks;
+        //    Hour = (int)hours;
+        //    Minute = (int)minutes;
+        //    Second = (int)seconds;
+        //    Frame = (int)frames;
+        //    IsDropFrame = isDropFrame;
+        //    FrameDuration = frameDuration;
+        //}
+
+        /// <summary>
+        /// Creates a new <see cref="Timecode"/> instance. (DropFrame規則が考慮されていなかったので修正)
+        /// </summary>
+        /// <param name="frameDuration">The duration of the frame in flicks.</param>
+        /// <param name="flicks">The time in flicks.</param>
+        /// <param name="isDropFrame">Is the specified time a valid drop frame timecode.</param>
         public Timecode(long frameDuration, long flicks, bool isDropFrame = false)
         {
-            // frames per second (ceiled)
             var fps = (BlackmagicUtilities.k_FlicksPerSecond + frameDuration - 1) / frameDuration;
-            var fpm = fps * 60;
-            var fph = fpm * 60;
 
-            // total time in frames
             var frames = flicks / frameDuration;
 
-            var hours = frames / fph;
-            frames -= hours * fph;
+            if (isDropFrame)
+            {
+                // SMPTE Drop Frame Supported for 29.97 (30DF) and 59.94 (60DF)
+                int dropFrames = 0;
+                switch (fps)
+                {
+                    case 30: dropFrames = 2; break;
+                    case 60: dropFrames = 4; break;
+                    default: UnityEngine.Debug.LogError("Drop-frame timecode is only valid for 29.97 or 59.94 fps."); break;
+                }
 
-            var minutes = frames / fpm;
-            frames -= minutes * fpm;
+                long framesPerHour = fps * 60L * 60L;
+                long framesPer24Hours = framesPerHour * 24;
+                long framesPer10Minutes = fps * 60L * 10L - dropFrames * 9;
+                long framesPerMinute = fps * 60L - dropFrames;
 
-            var seconds = frames / fps;
-            frames -= seconds * fps;
+                frames %= framesPer24Hours;
 
-            // 24 hours wrapping around
-            hours %= 24;
+                long d = frames / framesPer10Minutes;
+                long m = frames % framesPer10Minutes;
 
-            Flicks = flicks;
-            Hour = (int)hours;
-            Minute = (int)minutes;
-            Second = (int)seconds;
-            Frame = (int)frames;
+                frames += dropFrames * 9 * d;
+
+                if (m >= dropFrames)
+                    frames += dropFrames * ((m - dropFrames) / framesPerMinute);
+
+                var hours = frames / (fps * 3600L);
+                frames %= fps * 3600L;
+
+                var minutes = frames / (fps * 60L);
+                frames %= fps * 60L;
+
+                var seconds = frames / fps;
+                var frame = frames % fps;
+
+                Flicks = flicks;
+                Hour = (int)(hours % 24);
+                Minute = (int)minutes;
+                Second = (int)seconds;
+                Frame = (int)frame;
+            }
+            else
+            {
+                var fpm = fps * 60L;
+                var fph = fpm * 60L;
+
+                var hours = frames / fph;
+                frames -= hours * fph;
+
+                var minutes = frames / fpm;
+                frames -= minutes * fpm;
+
+                var seconds = frames / fps;
+                frames -= seconds * fps;
+
+                Flicks = flicks;
+                Hour = (int)(hours % 24);
+                Minute = (int)minutes;
+                Second = (int)seconds;
+                Frame = (int)frames;
+            }
+
             IsDropFrame = isDropFrame;
             FrameDuration = frameDuration;
         }

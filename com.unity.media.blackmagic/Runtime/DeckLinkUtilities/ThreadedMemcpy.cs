@@ -1,7 +1,6 @@
-using System;
+﻿using System;
 using System.Threading;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace Unity.Media.Blackmagic
@@ -12,8 +11,8 @@ namespace Unity.Media.Blackmagic
         {
             Thread m_Thread;
             CancellationToken m_CancellationToken;
-            SemaphoreSlim m_StartSemaphore;
-            SemaphoreSlim m_StopSemaphore;
+            AutoResetEvent m_StartWaitHandle;
+            AutoResetEvent m_StopWaitHandle;
             void* m_Dst;
             void* m_Src;
             long m_Count;
@@ -21,8 +20,8 @@ namespace Unity.Media.Blackmagic
             public CopyThread(CancellationToken cancellationToken, string threadName)
             {
                 m_CancellationToken = cancellationToken;
-                m_StartSemaphore = new SemaphoreSlim(0, 1);
-                m_StopSemaphore = new SemaphoreSlim(0, 1);
+                m_StartWaitHandle = new AutoResetEvent( false );
+                m_StopWaitHandle = new AutoResetEvent( false );
 
                 m_Thread = new Thread(CopyLoop)
                 {
@@ -34,21 +33,18 @@ namespace Unity.Media.Blackmagic
 
             public void Dispose()
             {
-                if (m_Thread != null)
+                if( m_StartWaitHandle != null)
                 {
-                    m_Thread.Join();
-                    m_Thread = null;
+                    m_StartWaitHandle.Set();
                 }
-                if (m_StartSemaphore != null)
-                {
-                    m_StartSemaphore.Dispose();
-                    m_StartSemaphore = null;
-                }
-                if (m_StopSemaphore != null)
-                {
-                    m_StopSemaphore.Dispose();
-                    m_StopSemaphore = null;
-                }
+
+                m_Thread?.Join();
+                m_Thread = null;
+
+                m_StartWaitHandle?.Dispose();
+                m_StartWaitHandle = null;
+                m_StopWaitHandle?.Dispose();
+                m_StopWaitHandle = null;
             }
 
             public void BeginCopy(void* dst, void* src, long count)
@@ -57,14 +53,14 @@ namespace Unity.Media.Blackmagic
                 m_Src = src;
                 m_Count = count;
 
-                m_StartSemaphore.Release();
+                m_StartWaitHandle.Set();
             }
 
             public void EndCopy()
             {
                 try
                 {
-                    m_StopSemaphore.Wait(m_CancellationToken);
+                    m_StopWaitHandle.WaitOne();
                 }
                 catch (OperationCanceledException)
                 {
@@ -79,7 +75,7 @@ namespace Unity.Media.Blackmagic
                 {
                     while (!m_CancellationToken.IsCancellationRequested)
                     {
-                        m_StartSemaphore.Wait(m_CancellationToken);
+                        m_StartWaitHandle.WaitOne();
 
                         if (!m_CancellationToken.IsCancellationRequested)
                         {
@@ -89,7 +85,7 @@ namespace Unity.Media.Blackmagic
 
                             Profiler.EndSample();
 
-                            m_StopSemaphore.Release();
+                            m_StopWaitHandle.Set();
                         }
                     }
                 }

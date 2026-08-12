@@ -49,6 +49,8 @@ namespace Unity.Media.Blackmagic
         [SerializeField]
         internal int m_SignalOverride = 0;
 
+        public bool UseRenderTextureConversion { get; set; } = true;
+
 #if UNITY_EDITOR
 #pragma warning disable 414
         [SerializeField]
@@ -457,10 +459,10 @@ namespace Unity.Media.Blackmagic
                     return;
 #endif
 
-                PresentFrame(frame, null);
+                if (UseRenderTextureConversion) PresentFrame(frame, null);
             }
 
-            UnpackTexture();
+            if (UseRenderTextureConversion) UnpackTexture();
         }
 
         void PresentFrame(BufferedFrame frame, long? timeInFrame)
